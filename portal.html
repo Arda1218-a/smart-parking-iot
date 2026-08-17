@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartPark DeepTech — Kullanıcı & Ed25519 Kripto Portalı</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="smartpark.js"></script>
+  <style>
+    :root {
+      --bg: #040814;
+      --card: rgba(255, 255, 255, 0.035);
+      --border: rgba(255, 255, 255, 0.08);
+      --cyan: #00e5ff;
+      --purple: #7928ca;
+      --green: #00df8f;
+      --red: #ff3366;
+      --amber: #f5a623;
+      --text: #e8f0fe;
+      --muted: #627293;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    }
+    .logo { font-size: 18px; font-weight: 900; }
+    .logo span { color: var(--cyan); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width:700px){ .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 22px; backdrop-filter: blur(10px);
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    .form-group { margin-bottom: 14px; }
+    label { font-size: 10px; color: var(--muted); font-weight: 700; display: block; margin-bottom: 6px; }
+    input, select {
+      width: 100%; padding: 10px 14px; background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border); border-radius: 10px; color: #fff;
+      font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--cyan); }
+    .btn {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-cyan { background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.25); }
+    .btn-cyan:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0, 229, 255, 0.4); }
+
+    .token-box {
+      background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: 12px; padding: 12px; font-family: var(--font-mono); font-size: 9px;
+      color: var(--cyan); word-break: break-all; margin-top: 12px;
+    }
+    #qrCanvas { display: block; margin: 16px auto; border-radius: 12px; }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; z-index: 9999; border: 1px solid;
+      background: rgba(0, 223, 143, 0.15); border-color: rgba(0, 223, 143, 0.4); color: var(--green);
+      transform: translateY(100px); opacity: 0; transition: all 0.3s;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">Smart<span>Park</span> DeepTech Portalı</div>
+    <div style="font-size:11px;color:var(--muted)">Ed25519 Kriptografik Yetkilendirme</div>
+  </header>
+
+  <div class="grid">
+    <!-- SOL: ARAÇ & PROFİL KAYDI -->
+    <div class="card">
+      <div class="card-title">🚗 Araç & Boyut Profili Oluştur</div>
+      <div class="form-group">
+        <label>AD SOYAD</label>
+        <input id="userName" value="Ahmet Yılmaz" />
+      </div>
+      <div class="form-group">
+        <label>ARAÇ MODELİ (ÖN PROFİL)</label>
+        <select id="carModel" onchange="syncCarSpecs()">
+          <option value="TOGG T10X">TOGG T10X (2165 kg - 1676 mm - EV SUV)</option>
+          <option value="TESLA MODEL Y">Tesla Model Y (1980 kg - 1624 mm - EV SUV)</option>
+          <option value="FORD RANGER">Ford Ranger (3250 kg - 1884 mm - Ağır Pickup)</option>
+          <option value="MERCEDES G-CLASS">Mercedes G-Serisi (3150 kg - 1969 mm - Ağır SUV)</option>
+          <option value="RENAULT CLIO">Renault Clio (1150 kg - 1440 mm - Kompakt)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>PLAKA</label>
+        <input id="carPlate" value="34 ABC 1437" style="text-transform:uppercase" />
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;font-size:11px;color:var(--muted)">
+        <div>Ağırlık: <strong id="specW" style="color:var(--cyan)">2165 kg</strong></div>
+        <div>Yükseklik: <strong id="specH" style="color:var(--cyan)">1676 mm</strong></div>
+      </div>
+      <button class="btn btn-cyan" onclick="generateTokenAndQR()">🔐 Ed25519 Kripto QR Üret</button>
+    </div>
+
+    <!-- SAĞ: KRİPTOGRAFİK DİNAMİK QR PASS -->
+    <div class="card">
+      <div class="card-title">🛡️ ISO 23374 Dinamik QR Pass</div>
+      <div style="font-size:11px;color:var(--muted);text-align:center">
+        Bu QR kod asimetrik şifrelenmiştir ve tek kullanımlıktır. Sahte token kabul edilmez.
+      </div>
+      <canvas id="qrCanvas"></canvas>
+      <div class="token-box" id="tokenBox">Henüz token üretilmedi.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function syncCarSpecs() {
+    const m = document.getElementById('carModel').value;
+    const cat = SP.VEHICLE_CATALOG[m];
+    if (cat) {
+      document.getElementById('specW').textContent = cat.weight + ' kg';
+      document.getElementById('specH').textContent = cat.height + ' mm';
+    }
+  }
+
+  function generateTokenAndQR() {
+    const name = document.getElementById('userName').value;
+    const plate = document.getElementById('carPlate').value.trim();
+    if (!plate) return;
+
+    const token = SP.generateSecureToken(name, plate);
+    document.getElementById('tokenBox').textContent = JSON.stringify(token);
+
+    QRCode.toCanvas(document.getElementById('qrCanvas'), JSON.stringify(token), {
+      width: 180,
+      margin: 2,
+      color: { dark: '#00e5ff', light: '#040814' }
+    });
+
+    const t = document.getElementById('toast');
+    t.textContent = '✅ Ed25519 İmzalı QR Kod Başarıyla Üretildi!';
+    t.className = 'toast show';
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  syncCarSpecs();
+  generateTokenAndQR();
+</script>
+</body>
+</html>

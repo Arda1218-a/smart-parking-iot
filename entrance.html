@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartPark DeepTech — Multi-Gate Kiosk & ISO 23374</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="smartpark.js"></script>
+  <style>
+    :root {
+      --bg: #040814;
+      --card: rgba(255, 255, 255, 0.035);
+      --border: rgba(255, 255, 255, 0.08);
+      --cyan: #00e5ff;
+      --purple: #7928ca;
+      --green: #00df8f;
+      --red: #ff3366;
+      --amber: #f5a623;
+      --text: #e8f0fe;
+      --muted: #627293;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 15% 15%, rgba(0, 229, 255, 0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 85% 85%, rgba(121, 40, 202, 0.07) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .wrap { position: relative; z-index: 1; }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(4, 8, 20, 0.95);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-badge {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 900; color: #fff;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
+    }
+    .logo-name { font-size: 18px; font-weight: 800; }
+    .logo-name span { color: var(--cyan); }
+    .tag-iso {
+      font-size: 8px; font-weight: 800; letter-spacing: 1px;
+      background: rgba(0, 229, 255, 0.12); color: var(--cyan);
+      border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px;
+      padding: 2px 6px; margin-left: 6px;
+    }
+    .header-r { display: flex; align-items: center; gap: 14px; }
+    .btn-portal {
+      display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+      color: var(--cyan); text-decoration: none; padding: 7px 14px;
+      border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 8px;
+      background: rgba(0, 229, 255, 0.06); transition: all 0.2s;
+    }
+    .btn-portal:hover { background: rgba(0, 229, 255, 0.15); transform: translateY(-1px); }
+    .live-pill {
+      display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted);
+      background: rgba(255, 255, 255, 0.03); padding: 5px 10px; border-radius: 99px;
+      border: 1px solid var(--border);
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── MULTI-GATE SELECTOR TABS ── */
+    .gate-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 12px 24px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border);
+    }
+    .gate-tab {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+    .gate-tab:hover { border-color: rgba(255, 255, 255, 0.2); }
+    .gate-tab.active {
+      border-color: var(--cyan);
+      background: rgba(0, 229, 255, 0.08);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+    }
+    .gate-name { font-size: 12px; font-weight: 700; }
+    .gate-status { font-size: 9px; font-weight: 700; color: var(--green); padding: 2px 6px; border-radius: 4px; background: rgba(0, 223, 143, 0.1); }
+
+    /* ── MAIN GRID ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 16px;
+      padding: 18px 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      backdrop-filter: blur(10px);
+    }
+    .card-hd {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── KANTAR & SENSOR GAUGE ── */
+    .sensor-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .sensor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sensor-lbl { font-size: 11px; color: var(--muted); }
+    .sensor-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--cyan); }
+
+    /* ── DENGELİ KAT BARLARI ── */
+    .floor-bar-item { margin-bottom: 12px; }
+    .floor-bar-hd { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .floor-bar-wrap { height: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 99px; overflow: hidden; }
+    .floor-bar { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    .floor-specs { font-size: 9px; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; }
+
+    /* ── KAFKA / TELEMETRI AKIŞI ── */
+    .telemetry-stream {
+      max-height: 380px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .telemetry-stream::-webkit-scrollbar { width: 3px; }
+    .telemetry-stream::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    .telemetry-event {
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border-left: 3px solid var(--cyan);
+      animation: fadeIn 0.3s ease;
+    }
+    .telemetry-event.alert { border-left-color: var(--red); background: rgba(255, 51, 102, 0.05); }
+    .telemetry-time { color: var(--muted); font-size: 8px; margin-bottom: 2px; }
+
+    /* ── TERMINAL & SENSOR INPUT ── */
+    .terminal {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: rgba(4, 8, 20, 0.95);
+      backdrop-filter: blur(20px);
+    }
+    .terminal-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items: end;
+    }
+    label { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+    .inp, select {
+      width: 100%; padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 600; outline: none; transition: all 0.2s;
+    }
+    .inp:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1); }
+    .btn {
+      padding: 11px 16px; border: none; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-enter { background: linear-gradient(135deg, var(--green), #059669); color: #fff; }
+    .btn-enter:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(0, 223, 143, 0.3); }
+
+    /* ── KARŞILAMA EKRANI (ISO 23374 PROTOKOLÜ) ── */
+    #welcomeScreen {
+      position: fixed; inset: 0; z-index: 999;
+      background: radial-gradient(ellipse 120% 120% at 50% 50%, #071026 0%, #030611 100%);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+    }
+    #welcomeScreen.show { display: flex; }
+    .ws-box { text-align: center; max-width: 600px; padding: 40px; }
+    .ws-top { font-size: 14px; letter-spacing: 6px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+    .ws-plate {
+      font-size: 56px; font-weight: 900; letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .ws-slot { font-size: 26px; font-weight: 800; color: var(--green); margin-bottom: 6px; }
+    .ws-reason { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .ws-specs {
+      display: flex; justify-content: center; gap: 16px; font-family: var(--font-mono); font-size: 11px;
+      background: rgba(255, 255, 255, 0.04); padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border);
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; max-width: 380px; z-index: 9999;
+      border: 1px solid; backdrop-filter: blur(20px); transform: translateY(100px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: rgba(0, 223, 143, 0.15); border-color: rgba(0, 223, 143, 0.4); color: var(--green); }
+    .toast.error { background: rgba(255, 51, 102, 0.15); border-color: rgba(255, 51, 102, 0.4); color: var(--red); }
+    .toast.info { background: rgba(0, 229, 255, 0.1); border-color: rgba(0, 229, 255, 0.3); color: var(--cyan); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="logo">
+      <div class="logo-badge">🅿</div>
+      <div>
+        <div class="logo-name">Smart<span>Park</span> DeepTech <span class="tag-iso">ISO 23374 AVP</span></div>
+      </div>
+    </div>
+    <div class="header-r">
+      <div class="live-pill"><div class="live-dot"></div>Dağıtık Kapı Motoru Aktif</div>
+      <a href="portal.html" target="_blank" class="btn-portal">👤 Kullanıcı Portalı</a>
+      <a href="floor.html?id=1" target="_blank" class="btn-portal" style="border-color:rgba(121,40,202,0.4);color:#a78bfa">🗺 Kat Haritaları & Kiosk</a>
+    </div>
+  </header>
+
+  <!-- ── ÇOKLU GİRİŞ KAPILARI (MULTI-GATE SELECTOR) ── -->
+  <div class="gate-bar">
+    <div class="gate-tab active" onclick="selectGate('gate_north', this)">
+      <div><div class="gate-name">🚪 Kuzey Kapısı (Gate A)</div><div style="font-size:9px;color:var(--muted)">Sensör Dizisi: Kantar + Lazer</div></div>
+      <span class="gate-status">ÖNCELİK 1</span>
+    </div>
+    <div class="gate-tab" onclick="selectGate('gate_south', this)">
+      <div><div class="gate-name">🚪 Güney Kapısı (Gate B)</div><div style="font-size:9px;color:var(--muted)">Sensör Dizisi: Kantar + Lazer</div></div>
+      <span class="gate-status">HAZIR</span>
+    </div>
+    <div class="gate-tab" onclick="selectGate('gate_east', this)">
+      <div><div class="gate-name">🚪 Doğu Kapısı (Gate C)</div><div style="font-size:9px;color:var(--muted)">Sensör Dizisi: Kantar + Lazer</div></div>
+      <span class="gate-status">HAZIR</span>
+    </div>
+    <div class="gate-tab" onclick="selectGate('gate_west', this)">
+      <div><div class="gate-name">🚪 Batı Kapısı (Gate D)</div><div style="font-size:9px;color:var(--muted)">Sensör Dizisi: Kantar + Lazer</div></div>
+      <span class="gate-status">HAZIR</span>
+    </div>
+  </div>
+
+  <!-- ── MAIN GRID ── -->
+  <div class="main-grid">
+
+    <!-- SOL: KANTAR & SENSÖR FÜZYONU -->
+    <div class="card">
+      <div class="card-hd">
+        <span>Fiziksel Profiler (Kantar & LiDAR)</span>
+        <span style="color:var(--cyan)">V2I</span>
+      </div>
+
+      <div class="sensor-box">
+        <div class="sensor-row">
+          <span class="sensor-lbl">⚖️ Aks Kantarı:</span>
+          <span class="sensor-val" id="dispWeight">1980 kg</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-lbl">📏 Lazer Yükseklik:</span>
+          <span class="sensor-val" id="dispHeight">1624 mm</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-lbl">📐 Araç Sınıfı:</span>
+          <span class="sensor-val" id="dispType" style="color:var(--green)">SUV (Elektrikli)</span>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:14px">
+        💡 <strong>Fiziksel Koruma:</strong> 2500 kg üzeri veya 2.10m'den yüksek araçlar yapı güvenliği için sadece <strong>Kat 1 (Güçlendirilmiş Zemin)</strong> alanına yönlendirilir.
+      </div>
+
+      <div class="card-hd"><span>Aktif Güvenlik İhlalleri</span></div>
+      <div id="strikeBox" style="font-size:11px;color:var(--muted)">Kara listede araç bulunmuyor (0/0).</div>
+    </div>
+
+    <!-- ORTA: DENGELİ KAT DOLULUK MOTORU -->
+    <div class="card">
+      <div class="card-hd">
+        <span>Dengeli Kat Dağıtım Motoru (Variance Minimization)</span>
+        <span id="genPct" style="color:var(--cyan);font-weight:800">Genel: 0%</span>
+      </div>
+      <div id="floorList"></div>
+    </div>
+
+    <!-- SAĞ: ISO 23374 TELEMETRİ / KAFKA EVENT STREAM -->
+    <div class="card">
+      <div class="card-hd">
+        <span>ISO 23374 Telemetri Olayları (gRPC Stream)</span>
+        <span style="font-size:8px;color:var(--green)">● CANLI</span>
+      </div>
+      <div class="telemetry-stream" id="telemetryStream">
+        <div style="color:var(--muted);text-align:center;padding:20px">Telemetri bekleniyor...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── TERMINAL ── -->
+  <div class="terminal">
+    <div class="terminal-grid">
+      <div>
+        <label>ARAÇ MODELİ / PLAKA</label>
+        <div style="display:flex;gap:6px">
+          <select id="modelSelect" onchange="syncModelData()">
+            <option value="TOGG T10X">TOGG T10X (2165 kg - 1676 mm - EV SUV)</option>
+            <option value="TESLA MODEL Y">Tesla Model Y (1980 kg - 1624 mm - EV SUV)</option>
+            <option value="FORD RANGER">Ford Ranger (3250 kg - 1884 mm - Ağır Pickup)</option>
+            <option value="MERCEDES G-CLASS">Mercedes G-Serisi (3150 kg - 1969 mm - Ağır SUV)</option>
+            <option value="RENAULT CLIO">Renault Clio (1150 kg - 1440 mm - Kompakt)</option>
+            <option value="FIAT EGEA">Fiat Egea (1280 kg - 1497 mm - Sedan)</option>
+          </select>
+          <input class="inp" id="plateInp" value="34 ABC 1437" placeholder="Plaka" style="width:140px;text-transform:uppercase" />
+        </div>
+      </div>
+
+      <div>
+        <label>KANTAR (kg) / BOYUT (mm)</label>
+        <div style="display:flex;gap:6px">
+          <input class="inp" id="weightInp" type="number" value="2165" />
+          <input class="inp" id="heightInp" type="number" value="1676" />
+        </div>
+      </div>
+
+      <div>
+        <label>İŞLEM</label>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-enter" onclick="submitGateEntry()" style="flex:1">🚗 Giriş Yap</button>
+          <button class="btn" onclick="submitExit()" style="background:rgba(255,51,102,0.15);color:var(--red);border:1px solid rgba(255,51,102,0.3)">Çıkış</button>
+        </div>
+      </div>
+
+      <div>
+        <label>TEST & SİMÜLASYON</label>
+        <div style="display:flex;gap:4px">
+          <button class="btn" onclick="simulateMultiVehicleEntry()" style="background:rgba(0,229,255,0.1);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);font-size:10px">+5 Dengeli Dağıt</button>
+          <button class="btn" onclick="simulateWrongPark()" style="background:rgba(245,166,35,0.1);color:var(--amber);border:1px solid rgba(245,166,35,0.3);font-size:10px">⚠️ Yanlış Park Et (Strike)</button>
+          <button class="btn" onclick="SP.simReset(); render(); toast('Sıfırlandı','Demo sıfırlandı','info')" style="background:rgba(255,255,255,0.05);color:var(--muted);font-size:10px">🔄</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- ── KARŞILAMA EKRANI ── -->
+<div id="welcomeScreen">
+  <div class="ws-box">
+    <div class="ws-top" id="wsGate">KUZEY KAPISI — HOŞ GELDİNİZ</div>
+    <div class="ws-plate" id="wsPlate">34 ABC 1437</div>
+    <div class="ws-slot" id="wsSlot">🅿️ KAT 1 — A-02</div>
+    <div class="ws-reason" id="wsReason">Dengeli Doluluk ve Ağırlık Dağıtımı</div>
+    <div class="ws-specs">
+      <span id="wsWeight">⚖️ 2165 kg</span>
+      <span id="wsHeight">📏 1676 mm</span>
+      <span id="wsState">📡 ISO 23374: AVP_DRIVING</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentGate = 'gate_north';
+  let toastTimer = null;
+
+  function selectGate(gateId, el) {
+    currentGate = gateId;
+    document.querySelectorAll('.gate-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    toast('Kapı Değiştirildi', `${el.querySelector('.gate-name').textContent} seçildi`, 'info');
+  }
+
+  function syncModelData() {
+    const sel = document.getElementById('modelSelect').value;
+    const cat = SP.VEHICLE_CATALOG[sel];
+    if (cat) {
+      document.getElementById('weightInp').value = cat.weight;
+      document.getElementById('heightInp').value = cat.height;
+      document.getElementById('dispWeight').textContent = cat.weight + ' kg';
+      document.getElementById('dispHeight').textContent = cat.height + ' mm';
+      document.getElementById('dispType').textContent = `${cat.type} ${cat.ev ? '(⚡ EV)' : ''}`;
+    }
+  }
+
+  function render() {
+    const stats = SP.getStats();
+    if (!stats) return;
+
+    document.getElementById('genPct').textContent = `Genel Doluluk: %${stats.pct}`;
+
+    // Kat Barları
+    document.getElementById('floorList').innerHTML = stats.floors.map(f => {
+      const color = f.pct < 50 ? '#00df8f' : f.pct < 80 ? '#f5a623' : '#ff3366';
+      return `
+        <div class="floor-bar-item">
+          <div class="floor-bar-hd">
+            <span>${f.name} ${f.id === 1 ? '<span style="font-size:9px;color:var(--amber)">[Ağır/Yüksek Slotlar]</span>' : ''}</span>
+            <span style="color:${color}">%${f.pct} (${f.occupied}/${f.total} Dolu)</span>
+          </div>
+          <div class="floor-bar-wrap">
+            <div class="floor-bar" style="width:${f.pct}%;background:${color}"></div>
+          </div>
+          <div class="floor-specs">
+            <span>Maks: ${f.maxWeightKg} kg</span>
+            <span>Tavan: ${(f.maxHeightMm/1000).toFixed(2)}m</span>
+            <span>Boş: ${f.available} yer</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Telemetri Akışı
+    const db = SP.getDB();
+    const telBox = document.getElementById('telemetryStream');
+    if (db && db.telemetryLogs && db.telemetryLogs.length) {
+      telBox.innerHTML = db.telemetryLogs.map(l => `
+        <div class="telemetry-event ${l.protocol === 'SECURITY_ALERT' ? 'alert' : ''}">
+          <div class="telemetry-time">[${new Date(l.timestamp).toLocaleTimeString('tr-TR')}] proto=${l.protocol}</div>
+          <div style="font-weight:700;color:${l.protocol==='SECURITY_ALERT'?'var(--red)':'var(--cyan)'}">${l.action} (${l.plate})</div>
+          <div style="color:var(--muted);font-size:9px">${JSON.stringify(l.payload)}</div>
+        </div>
+      `).join('');
+    }
+
+    // Strike & Blacklist
+    if (db && db.blacklist) {
+      document.getElementById('strikeBox').innerHTML = db.blacklist.length
+        ? `<span style="color:var(--red);font-weight:700">🚨 Kara Listedeki Araçlar: ${db.blacklist.join(', ')}</span>`
+        : `Kara listede araç bulunmuyor (Tüm kullanıcılar güvenli).`;
+    }
+  }
+
+  function submitGateEntry() {
+    const plate = document.getElementById('plateInp').value.trim();
+    const model = document.getElementById('modelSelect').value;
+    const weight = parseInt(document.getElementById('weightInp').value);
+    const height = parseInt(document.getElementById('heightInp').value);
+
+    if (!plate) { toast('Hata', 'Plaka giriniz', 'error'); return; }
+
+    const r = SP.processGateEntry(currentGate, plate, model, weight, height);
+    if (r.error) {
+      toast('🛑 Giriş Reddedildi', r.error, 'error');
+      return;
+    }
+
+    showWelcome(r.plate, r.floorName, r.slotCode, r.reason, weight, height);
+    render();
+  }
+
+  function submitExit() {
+    const plate = document.getElementById('plateInp').value.trim();
+    if (!plate) return;
+    const r = SP.vehicleExit(plate);
+    if (r.error) { toast('Hata', r.error, 'error'); return; }
+    toast('Çıkış Başarılı', r.message, 'success');
+    render();
+  }
+
+  function showWelcome(plate, floorName, slotCode, reason, weight, height) {
+    document.getElementById('wsPlate').textContent = plate;
+    document.getElementById('wsSlot').textContent = `🅿️ ${floorName} → ${slotCode}`;
+    document.getElementById('wsReason').textContent = reason;
+    document.getElementById('wsWeight').textContent = `⚖️ ${weight} kg`;
+    document.getElementById('wsHeight').textContent = `📏 ${height} mm`;
+
+    const ws = document.getElementById('welcomeScreen');
+    ws.classList.add('show');
+    setTimeout(() => { ws.classList.remove('show'); }, 3800);
+  }
+
+  function simulateMultiVehicleEntry() {
+    const models = Object.keys(SP.VEHICLE_CATALOG);
+    for (let i = 1; i <= 5; i++) {
+      const m = models[i % models.length];
+      const p = `34 DEM ${100 + Math.floor(Math.random()*899)}`;
+      SP.processGateEntry(currentGate, p, m);
+    }
+    toast('Dengeli Dağıtım', '5 araç katlara homojen olarak dağıtıldı', 'success');
+    render();
+  }
+
+  function simulateWrongPark() {
+    const db = SP.getDB();
+    if (!db.vehicles.length) { toast('Hata', 'İçeride araç yok. Önce araç sokun.', 'error'); return; }
+    const v = db.vehicles[0];
+    const r = SP.confirmSlotSensors(v.plate, '99_WRONG_SLOT');
+    if (r.blacklisted) {
+      toast('🚨 KARA LİSTE!', r.message, 'error');
+    } else {
+      toast('⚠️ İhlal Kaydedildi', r.message, 'error');
+    }
+    render();
+  }
+
+  function toast(title, body, type = 'info') {
+    const t = document.getElementById('toast');
+    t.textContent = `${title}: ${body}`;
+    t.className = `toast ${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  SP.onUpdate(() => render());
+  syncModelData();
+  render();
+</script>
+</body>
+</html>

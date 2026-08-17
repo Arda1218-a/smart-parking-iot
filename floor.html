@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartPark — Kat Haritası & Offline AI Wayfinding Kiosk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="smartpark.js"></script>
+  <style>
+    :root {
+      --bg: #040814;
+      --card: rgba(255, 255, 255, 0.035);
+      --border: rgba(255, 255, 255, 0.08);
+      --cyan: #00e5ff;
+      --purple: #7928ca;
+      --green: #00df8f;
+      --red: #ff3366;
+      --amber: #f5a623;
+      --text: #e8f0fe;
+      --muted: #627293;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      background: rgba(4, 8, 20, 0.95); backdrop-filter: blur(20px);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; }
+    .btn-lost {
+      background: linear-gradient(135deg, var(--purple), #4f46e5);
+      color: #fff; border: none; border-radius: 8px; padding: 8px 16px;
+      font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 0 15px rgba(121, 40, 202, 0.3);
+    }
+    .btn-lost:hover { transform: translateY(-1px); box-shadow: 0 0 25px rgba(121, 40, 202, 0.5); }
+
+    .tabs { display: flex; gap: 6px; padding: 12px 24px; border-bottom: 1px solid var(--border); background: rgba(255, 255, 255, 0.02); }
+    .tab {
+      padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700;
+      cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    }
+    .tab.active { background: rgba(0, 229, 255, 0.12); color: var(--cyan); border-color: var(--cyan); }
+
+    .main { display: grid; grid-template-columns: 1fr 300px; gap: 16px; padding: 20px 24px; }
+    .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; }
+    .row-hd { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 1.5px; margin-top: 10px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
+    .slot {
+      aspect-ratio: 1; border-radius: 8px; border: 1px solid;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; position: relative; font-size: 9px; font-weight: 700;
+    }
+    .slot.avail { background: rgba(0, 223, 143, 0.08); border-color: rgba(0, 223, 143, 0.3); color: var(--green); }
+    .slot.occ { background: rgba(255, 51, 102, 0.12); border-color: rgba(255, 51, 102, 0.3); color: var(--red); }
+    .slot.unconfirmed { background: rgba(245, 166, 35, 0.12); border-color: rgba(245, 166, 35, 0.4); color: var(--amber); }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+
+    /* ── WAYFINDING / ARACIMI BUL MODAL ── */
+    #lostModal {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(4, 8, 20, 0.95); backdrop-filter: blur(25px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #lostModal.show { display: flex; }
+    .lost-box {
+      background: #081226; border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 20px; padding: 32px; max-width: 520px; width: 100%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+    }
+    .dir-step {
+      padding: 10px 14px; background: rgba(255, 255, 255, 0.03);
+      border-left: 3px solid var(--cyan); border-radius: 6px; margin-bottom: 8px;
+      font-size: 12px; line-height: 1.4;
+    }
+
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; z-index: 9999; border: 1px solid;
+      background: rgba(0, 229, 255, 0.1); border-color: rgba(0, 229, 255, 0.3); color: var(--cyan);
+      transform: translateY(100px); opacity: 0; transition: all 0.3s;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🅿️ SmartPark — <span id="flTitle">Kat 1</span></div>
+  <button class="btn-lost" onclick="openLostModal()">📍 Ben Kayboldum / Aracımı Bul (AI Terminal)</button>
+</header>
+
+<div class="tabs" id="flTabs"></div>
+
+<div class="main">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:14px">
+      <span>Slot Düzeni (Yeşil: Boş | Sarı: Yolda/Doğrulama Bekliyor | Kırmızı: Park Edildi)</span>
+      <span>💡 Bir slota tıklayarak <strong>Sensör Teyidi (2. Adım)</strong> yapabilirsiniz.</span>
+    </div>
+    <div class="grid" id="slotGrid"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:12px;text-transform:uppercase">Kat Özellikleri</div>
+    <div style="font-size:13px;line-height:1.8">
+      <div>Aks Taşıma Kapasitesi: <strong id="specWeight" style="color:var(--cyan)">4500 kg</strong></div>
+      <div>Tavan Yükseklik Limiti: <strong id="specHeight" style="color:var(--cyan)">2.40 m</strong></div>
+      <div>Toplam Slot: <strong>30 Yer</strong></div>
+      <div style="margin-top:14px;font-size:11px;color:var(--muted)">
+        Ağır tonajlı pickup (3-4 ton) ve yüksek SUV araçlar yapısal güvenlik gereği sadece Kat 1'e kabul edilir.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── OFFLINE AI WAYFINDING KIOSK MODAL ── -->
+<div id="lostModal">
+  <div class="lost-box">
+    <div style="font-size:18px;font-weight:800;margin-bottom:6px">🧭 Kapalı Alan "Aracımı Bul" AI Terminali</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:18px">GPS veya internet çekmediği durumlarda plakanızı yazarak adım adım rota alabilirsiniz.</div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="lostInp" placeholder="Plaka giriniz (Örn: 34 ABC 1437)" style="flex:1;padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;color:#fff;font-weight:700;text-transform:uppercase" />
+      <button onclick="searchCar()" style="padding:10px 18px;background:var(--cyan);color:#040814;border:none;border-radius:10px;font-weight:800;cursor:pointer">Ara</button>
+    </div>
+
+    <div id="lostResult" style="display:none">
+      <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);padding:14px;border-radius:12px;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:800;color:var(--cyan)" id="resTitle">—</div>
+        <div style="font-size:11px;color:var(--muted)" id="resSub">—</div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">Adım Adım Yürüyüş Rotası:</div>
+      <div id="dirSteps"></div>
+    </div>
+
+    <button onclick="closeLostModal()" style="width:100%;margin-top:16px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer">✕ Kapat</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let curFloor = 1;
+
+  function renderTabs() {
+    document.getElementById('flTabs').innerHTML = [1, 2, 3, 4, 5].map(id => `
+      <div class="tab ${id === curFloor ? 'active' : ''}" onclick="switchFloor(${id})">Kat ${id}</div>
+    `).join('');
+  }
+
+  function switchFloor(id) {
+    curFloor = id;
+    renderTabs();
+    render();
+  }
+
+  function render() {
+    const db = SP.getDB();
+    if (!db) return;
+    const floor = db.floors.find(f => f.id === curFloor);
+    if (!floor) return;
+
+    document.getElementById('flTitle').textContent = floor.name;
+    document.getElementById('specWeight').textContent = floor.maxWeightKg + ' kg';
+    document.getElementById('specHeight').textContent = (floor.maxHeightMm/1000).toFixed(2) + ' m';
+
+    let html = '';
+    for (const row of ['A', 'B', 'C']) {
+      html += `<div class="row-hd">SIRA ${row}</div>`;
+      const slots = floor.slots.filter(s => s.row === row);
+      for (const slot of slots) {
+        let cls = 'avail';
+        let txt = slot.code;
+        if (slot.occupied) {
+          cls = slot.confirmed ? 'occ' : 'unconfirmed';
+          txt += `<div style="font-size:6px;font-family:monospace">${slot.plate}</div>`;
+        }
+        html += `
+          <div class="slot ${cls}" onclick="triggerSensorConfirm('${slot.id}', '${slot.plate || ''}')">
+            ${txt}
+          </div>
+        `;
+      }
+    }
+    document.getElementById('slotGrid').innerHTML = html;
+  }
+
+  function triggerSensorConfirm(slotId, plate) {
+    if (!plate) {
+      toast('Boş Slot', 'Bu slotta henüz atanmış bir araç bulunmuyor.');
+      return;
+    }
+    const r = SP.confirmSlotSensors(plate, slotId);
+    if (r.success) {
+      toast('✅ Doğrulandı', r.message);
+    } else {
+      toast('⚠️ İhlal', r.message);
+    }
+    render();
+  }
+
+  function openLostModal() { document.getElementById('lostModal').classList.add('show'); }
+  function closeLostModal() { document.getElementById('lostModal').classList.remove('show'); }
+
+  function searchCar() {
+    const q = document.getElementById('lostInp').value;
+    if (!q) return;
+    const r = SP.findMyCarKiosk(q);
+    if (r.error) {
+      toast('Bulunamadı', r.error);
+      return;
+    }
+    document.getElementById('lostResult').style.display = 'block';
+    document.getElementById('resTitle').textContent = `🚗 ${r.plate} — ${r.floorName} (Slot: ${r.slotCode})`;
+    document.getElementById('resSub').textContent = `Model: ${r.model} | Süre: ${r.durationMinutes} dk | Ücret: ₺${r.currentFee}`;
+    document.getElementById('dirSteps').innerHTML = r.directions.map(d => `<div class="dir-step">${d}</div>`).join('');
+  }
+
+  function toast(title, msg) {
+    const t = document.getElementById('toast');
+    t.textContent = `${title}: ${msg}`;
+    t.className = 'toast show';
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  SP.onUpdate(() => render());
+  renderTabs();
+  render();
+</script>
+</body>
+</html>
